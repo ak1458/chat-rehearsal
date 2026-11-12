@@ -30,6 +30,7 @@ export type Phone = {
   charging: boolean;
   signal: number;
   wifi: boolean;
+  showStatus?: boolean;
   width: number;
   height: number;
   wallpaper?: string;

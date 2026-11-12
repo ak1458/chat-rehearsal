@@ -16,6 +16,7 @@ type Props = {
   previewRef: RefObject<HTMLDivElement | null>;
   messagesRef: RefObject<HTMLDivElement | null>;
   select: (id: string) => void;
+  editDate: (id: string) => void;
   add: () => void;
 };
 
@@ -26,7 +27,7 @@ const fonts = {
   arial: 'Arial, sans-serif',
 };
 
-export function PhonePreview({ phone, messages, reference, preserve, original, today, previewRef, messagesRef, select, add }: Props) {
+export function PhonePreview({ phone, messages, reference, preserve, original, today, previewRef, messagesRef, select, editDate, add }: Props) {
   const [canJump, setCanJump] = useState(false);
   useEffect(() => {
     const body = messagesRef.current;
@@ -47,14 +48,16 @@ export function PhonePreview({ phone, messages, reference, preserve, original, t
 
   const android = phone.platform === 'Android';
   const ratio = phone.width / phone.height;
-  const sourceStatus = reference && preserve.status ? reference.status : undefined;
+  const showStatus = phone.showStatus !== false;
+  const sourceStatus = showStatus && reference && preserve.status ? reference.status : undefined;
   const sourceHeader = reference && preserve.header ? reference.header : undefined;
   const sourceFooter = reference && preserve.footer ? reference.footer : undefined;
   const wallpaper = phone.wallpaper ? 'url("' + phone.wallpaper + '")'
     : phone.wallpaperStyle === 'solid' ? undefined : doodles[phone.theme];
   const style = {
     '--screen-ratio': phone.width + '/' + phone.height,
-    '--status-height': (sourceStatus ? reference!.statusFraction * 100 : Math.max(reference?.statusFraction ?? 0, ratio * .089) * 100) + '%',
+    '--status-height': showStatus
+      ? (sourceStatus ? reference!.statusFraction : Math.max(reference?.statusFraction ?? 0, ratio * .089)) * 100 + '%' : '0%',
     '--header-height': (sourceHeader ? reference!.headerFraction * 100 : Math.max(reference?.headerFraction ?? 0, ratio * .134) * 100) + '%',
     '--footer-height': (sourceFooter ? reference!.footerFraction * 100 : Math.max(reference?.footerFraction ?? 0, ratio * .151) * 100) + '%',
     '--sample-bg': phone.background,
@@ -73,7 +76,7 @@ export function PhonePreview({ phone, messages, reference, preserve, original, t
     ref={previewRef} style={style} aria-label={original ? 'Original screenshot' : 'Chat preview'}>
     {original && reference ? <img className="original" src={reference.source} alt="Original WhatsApp screenshot" /> : <>
       <div className="phone-status">
-        {sourceStatus ? <img className="source-slice" src={sourceStatus} alt="Original status bar" /> : <>
+        {showStatus && (sourceStatus ? <img className="source-slice" src={sourceStatus} alt="Original status bar" /> : <>
           <strong>{displayTime(phone.clock, phone.format)}</strong>
           <div className="status-right">
             <span className="bars" aria-label={phone.signal + ' signal bars'}>{[1, 2, 3, 4].map(bar => <i key={bar} style={{ opacity: bar <= phone.signal ? 1 : .25 }} />)}</span>
@@ -84,7 +87,7 @@ export function PhonePreview({ phone, messages, reference, preserve, original, t
             </span>
             {phone.charging && <Zap size="2.7cqw" fill="currentColor" />}
           </div>
-        </>}
+        </>)}
       </div>
       <div className="phone-header">
         {sourceHeader ? <img className="source-slice" src={sourceHeader} alt="Original chat header" /> : <>
@@ -105,8 +108,10 @@ export function PhonePreview({ phone, messages, reference, preserve, original, t
             const newDay = !previous || date !== (previous.date || today);
             const tail = newDay || previous.outgoing !== message.outgoing || previous.sender !== message.sender || previous.kind === 'event';
             const side = message.outgoing ? 'outgoing' : 'incoming';
+            const dayLabel = newDay ? dateLabel(date, today) : '';
             return <Fragment key={message.id}>
-              {newDay && <span className="date-chip" data-export-decoration>{dateLabel(date, today)}</span>}
+              {newDay && <button type="button" className="date-chip change-date" data-export-decoration
+                aria-label={'Change chat date: ' + dayLabel} title="Change chat date" onClick={() => editDate(message.id)}>{dayLabel}</button>}
               {message.kind === 'event' ? <button type="button" className="date-chip event"
                 onClick={() => select(message.id)}>{message.text}</button> :
               <div className={'bubble-row ' + side + (message.reaction ? ' has-reaction' : '')}

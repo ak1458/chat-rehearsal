@@ -47,6 +47,7 @@ export async function exportHtml(phone: HTMLDivElement, width: number) {
   clone.querySelectorAll('button').forEach(button => {
     const span = document.createElement('span');
     span.className = button.className;
+    if (button.hasAttribute('data-export-decoration')) span.setAttribute('data-export-decoration', '');
     span.append(...button.childNodes);
     button.replaceWith(span);
   });
@@ -55,7 +56,7 @@ export async function exportHtml(phone: HTMLDivElement, width: number) {
     catch { return []; }
   }).join('\n');
   const documentText = '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
-    '<title>Chat Rehearsal</title><style>' + (fontStyles + '\n' + styles).replace(/<\/style/gi, '<\\/style') +
+    '<title data-export-decoration>Chat Rehearsal</title><style>' + (fontStyles + '\n' + styles).replace(/<\/style/gi, '<\\/style') +
     'body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:12px;background:#eeeaf8}' +
     '.phone{width:min(calc(100vw - 24px), ' + Math.min(480, width) + 'px, calc((100dvh - 24px) * var(--screen-ratio)));margin:0;border-radius:12px}' +
     '</style><body>' + clone.outerHTML + '</body></html>';

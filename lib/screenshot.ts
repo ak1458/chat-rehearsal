@@ -4,7 +4,7 @@ import { colorDistance as distance, findChatBounds, maskBubbleRows, type Color }
 
 export type Reference = {
   source: string;
-  status: string;
+  status?: string;
   header?: string;
   footer?: string;
   statusFraction: number;
@@ -126,7 +126,7 @@ export async function scanScreenshot(file: File, progress: (label: string) => vo
   } finally {
     await worker?.terminate().catch(() => undefined);
   }
-  const { bodyTop, bodyBottom, chrome, keepHeader, keepFooter } = findChatBounds(width, height, pixel, lines);
+  const { bodyTop, bodyBottom, statusBottom, chrome, keepHeader, keepFooter } = findChatBounds(width, height, pixel, lines);
   const background = mode(Array.from({ length: 126 }, (_, index) =>
     pixel(width * (index % 2 ? .02 : .98), bodyTop + (bodyBottom - bodyTop) * (index / 126)))) ?? chrome;
   const dark = (chrome[0] + chrome[1] + chrome[2]) / 3 < 105;
@@ -141,9 +141,6 @@ export async function scanScreenshot(file: File, progress: (label: string) => vo
     if (color[1] - color[0] > 13 && distance(color, background) > 25) return true;
     return undefined;
   });
-  const statusBottom = Math.round(text.nameLine
-    ? Math.min(bodyTop * .68, Math.max(bodyTop * .3, text.nameLine.y - width * .03))
-    : bodyTop * .46);
   const bubble = (outgoing: boolean) => {
     const color = mode(text.entries.filter(entry => entry.draft.outgoing === outgoing)
       .map(entry => bubbleColor(entry.line)).filter(value => distance(value, background) > 22));
@@ -220,14 +217,14 @@ export async function scanScreenshot(file: File, progress: (label: string) => vo
   const textSize = glyphSizes.length ? Math.max(3.1, Math.min(5.4, glyphSizes[Math.floor(glyphSizes.length / 2)] * 114)) : undefined;
   return {
     reference: {
-      source, status: crop(0, statusBottom), header: keepHeader ? crop(statusBottom, bodyTop) : undefined,
+      source, status: statusBottom ? crop(0, statusBottom) : undefined, header: keepHeader ? crop(statusBottom, bodyTop) : undefined,
       footer: keepFooter ? crop(bodyBottom, height) : undefined,
       statusFraction: statusBottom / height, headerFraction: (bodyTop - statusBottom) / height,
       footerFraction: (height - bodyBottom) / height,
     },
     phone: {
       width: naturalWidth, height: naturalHeight, theme: dark ? 'dark' : 'light',
-      name: text.name || 'Imported chat', avatar: avatarFromScreenshot(),
+      name: text.name, avatar: avatarFromScreenshot(), showStatus: statusBottom > 0,
       platform: keepHeader && bodyTop / width < .219 ? 'Android' : keepHeader && bodyTop / width > .26 ? 'iPhone' : undefined,
       background: hex(background), chrome: hex(chrome), incoming: incoming && hex(incoming), outgoing: outgoing && hex(outgoing),
       textSize, ...recoverWallpaper(),

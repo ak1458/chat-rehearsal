@@ -5,16 +5,26 @@ export type TextLine = { text: string; x: number; y: number; width: number; heig
 const clockPattern = /\b(\d{1,2}:[0-5]\d(?:\s*[AP]M)?)\b/i;
 const trailingTime = /\s*(\d{1,2}:[0-5]\d(?:\s*[AP]M)?)\s*[✓✔√Vv»]*$/i;
 
+export function findStatusClock(lines: TextLine[], width: number, bottom = width * .118) {
+  return lines.find(line => line.y < bottom && (line.x < width * .35 || line.x > width * .74)
+    && /^\s*\d{1,2}:[0-5]\d\b/.test(line.text));
+}
+
+export function findContactLine(lines: TextLine[], width: number, top: number, bottom: number) {
+  return lines.filter(line => line.y >= top && line.y + line.height <= bottom
+    && line.x > width * .12 && line.x < width * .68 && /[\p{L}]{2}/u.test(line.text)
+    && !/^(online|typing|last seen|today|yesterday|tomorrow)\b/i.test(line.text)
+    && !/^\s*\d{1,2}:[0-5]\d\b/.test(line.text))
+    .sort((a, b) => b.height - a.height || b.width - a.width)[0];
+}
+
 export function readScreenshotText(lines: TextLine[], width: number, bodyTop: number, bodyBottom: number, sideOf?: (line: TextLine) => boolean | undefined) {
   const sorted = [...lines].sort((a, b) => a.y - b.y || a.x - b.x);
   const top = sorted.filter(line => line.y < bodyTop);
-  const clockLine = top.find(line => clockPattern.test(line.text));
+  const clockLine = findStatusClock(top, width, Math.min(bodyTop * .57, width * .118));
   const clockText = clockLine?.text.match(clockPattern)?.[1];
   const clock = clockText ? normalizeTime(clockText) : undefined;
-  const nameLine = top.filter(line => line !== clockLine && line.y > bodyTop * .34
-    && line.x > width * .12 && line.x < width * .68 && /[\p{L}]{2}/u.test(line.text)
-    && !/^(online|typing|last seen)\b/i.test(line.text))
-    .sort((a, b) => b.height - a.height || b.width - a.width)[0];
+  const nameLine = findContactLine(top, width, clockLine ? clockLine.y + clockLine.height : 0, bodyTop);
   const name = nameLine?.text.trim();
   const battery = top.filter(line => line.x > width * .65 && line.y < bodyTop * .6)
     .map(line => line.text.match(/\b(\d{1,3})\s*%/)).find(Boolean)?.[1];
@@ -31,7 +41,7 @@ export function readScreenshotText(lines: TextLine[], width: number, bodyTop: nu
         continue;
       }
     }
-    if (/^(today|yesterday|unread messages)$/i.test(raw) ||
+    if (/^(today|yesterday|tomorrow|unread messages)$/i.test(raw) ||
       /end.to.end encrypted|no one outside|tap to learn more/i.test(raw)) continue;
     const timeMatch = raw.match(trailingTime);
     const time = timeMatch ? normalizeTime(timeMatch[1]) : undefined;

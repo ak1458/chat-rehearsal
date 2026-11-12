@@ -22,6 +22,13 @@ test('keeps relative day headings and named times from pasted text', () => {
   ]);
 });
 
+test('round-trips a Tomorrow date heading', () => {
+  const today = '2026-11-12';
+  const [message] = importConversation('Tomorrow\nMaya: See you then', { today });
+  assert.equal(message.date, '2026-11-13');
+  assert.equal(dateLabel(message.date, today), 'Tomorrow');
+});
+
 test('reads structured HTML speakers and semantic timestamps', () => {
   const rows = importConversation('<article class="message incoming"><span class="sender">Maya</span><time datetime="2026-11-11T21:20:00">9:20 PM</time><div class="message-text">First<br>Second</div></article>');
   assert.deepEqual(rows, [{ sender: 'Maya', text: 'First\nSecond', time: '21:20', date: '2026-11-11', outgoing: false }]);
@@ -52,6 +59,28 @@ test('keeps the last bubble out of a composer crop over same-color wallpaper', (
   ]);
   assert.ok(bounds.bodyBottom >= 797 && bounds.bodyBottom <= 812);
   assert.equal(bounds.keepFooter, false);
+});
+
+test('keeps a cropped Android contact header intact when the status bar is absent', () => {
+  const lines = [
+    { text: 'Prashant Tiwari', x: 108, y: 17, width: 141, height: 16 },
+    { text: 'Hello from this chat', x: 55, y: 100, width: 171, height: 14 },
+  ];
+  const bounds = findChatBounds(390, 844, (_, y) => y < 53 ? [14, 19, 22] : [7, 11, 13], lines);
+  assert.equal(bounds.bodyTop, 53);
+  assert.equal(bounds.statusBottom, 0);
+  assert.equal(bounds.keepHeader, true);
+  assert.equal(readScreenshotText(lines, 390, bounds.bodyTop, bounds.bodyBottom).name, 'Prashant Tiwari');
+});
+
+test('separates a real status clock from the contact header on a full screenshot', () => {
+  const lines = [
+    { text: '9:41', x: 18, y: 10, width: 39, height: 13 },
+    { text: 'Prashant Tiwari', x: 107, y: 54, width: 140, height: 16 },
+  ];
+  const bounds = findChatBounds(390, 844, (_, y) => y < 90 ? [14, 19, 22] : [7, 11, 13], lines);
+  assert.equal(bounds.bodyTop, 90);
+  assert.ok(bounds.statusBottom > 23 && bounds.statusBottom <= 40);
 });
 
 test('masks undetected bubble lettering inside a flat fill without masking nearby wallpaper', () => {

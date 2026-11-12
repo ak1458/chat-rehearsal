@@ -30,6 +30,7 @@ export function addDays(iso: string, days: number) {
 export function dateLabel(iso: string | undefined, today: string) {
   if (!iso || iso === today) return 'Today';
   if (iso === addDays(today, -1)) return 'Yesterday';
+  if (iso === addDays(today, 1)) return 'Tomorrow';
   const day = new Date(iso + 'T00:00:00Z');
   return Number.isNaN(day.getTime()) ? iso : new Intl.DateTimeFormat('en-GB', {
     day: 'numeric', month: 'short', year: iso.slice(0, 4) === today.slice(0, 4) ? undefined : 'numeric', timeZone: 'UTC',
@@ -40,6 +41,7 @@ export function parseDay(value: string, today: string, order: 'dmy' | 'mdy' = 'd
   const text = value.trim();
   if (/^today$/i.test(text)) return today;
   if (/^yesterday$/i.test(text)) return addDays(today, -1);
+  if (/^tomorrow$/i.test(text)) return addDays(today, 1);
   const numeric = /^(\d{1,4})[-./](\d{1,2})[-./](\d{1,4})$/.exec(text);
   if (!numeric) {
     if (!/^(?:\d{1,2}\s+[a-z]{3,9}|[a-z]{3,9}\s+\d{1,2})(?:,?\s+\d{4})?$/i.test(text)) return undefined;

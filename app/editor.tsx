@@ -6,7 +6,7 @@ import { defaultPhone, demo, importConversation, type Draft, type Message, type 
 import { readAsset, scanScreenshot, type Reference, type Screenshot } from '../lib/screenshot';
 import { exportHtml, exportPng } from '../lib/export';
 import { PhonePreview, type Preserve } from './phone-preview';
-import { dateLabel, localDate, scheduleDrafts, type Timing } from '../lib/timeline';
+import { addDays, dateLabel, localDate, scheduleDrafts, type Timing } from '../lib/timeline';
 
 const noSlices = { status: false, header: false, footer: false };
 const icons = { text: MessageCircle, photo: ImagePlus, voice: MessagesSquare, event: CodeXml };
@@ -20,7 +20,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function Modal({ title, close, children }: { title: string; close: () => void; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => { ref.current?.showModal(); }, []);
-  return <dialog ref={ref} className="dialog" onCancel={close} onClick={event => {
+  return <dialog ref={ref} className="dialog" aria-label={title} onCancel={close} onClick={event => {
     if (event.target === event.currentTarget) close();
   }}><div className="dialog-inner">
     <div className="dialog-head"><h2>{title}</h2><button type="button" className="icon-btn" onClick={close} aria-label="Close"><X size={19} /></button></div>
@@ -47,6 +47,7 @@ export default function Editor() {
   const [dateOrder, setDateOrder] = useState<'dmy' | 'mdy'>('dmy');
   const [replace, setReplace] = useState(false);
   const [today, setToday] = useState('');
+  const [dateEdit, setDateEdit] = useState<{ messageId: string; value: string }>();
   const [timing, setTiming] = useState<Timing>({ auto: true, startDate: '', startTime: '09:00', receivedDelay: 3, sentDelay: 4 });
   const [exportMenu, setExportMenu] = useState(false);
   const [drop, setDrop] = useState(false);
@@ -112,6 +113,26 @@ export default function Editor() {
     setMessages(current => current.map(message => message.id === selectedId ? { ...message, ...update } : message));
   }
 
+  function editDate(messageId: string) {
+    const message = messages.find(item => item.id === messageId);
+    if (message) setDateEdit({ messageId, value: message.date || today || localDate() });
+  }
+
+  function applyDate() {
+    if (!dateEdit?.value) return;
+    const currentDay = today || localDate();
+    setMessages(current => {
+      const start = current.findIndex(message => message.id === dateEdit.messageId);
+      if (start < 0) return current;
+      const oldDate = current[start].date || currentDay;
+      let end = start + 1;
+      while (end < current.length && (current[end].date || currentDay) === oldDate) end++;
+      return current.map((message, position) =>
+        position >= start && position < end ? { ...message, date: dateEdit.value } : message);
+    });
+    setDateEdit(undefined);
+  }
+
   function move(offset: number) {
     const next = index + offset;
     if (index < 0 || next < 0 || next >= messages.length) return;
@@ -163,10 +184,11 @@ export default function Editor() {
 
   function applyScreenshot(useMessages: boolean) {
     if (!pending) return;
-    const next = { ...defaultPhone, ...pending.phone, platform: pending.phone.platform ?? phone.platform };
+    const next = { ...defaultPhone, ...pending.phone, name: pending.phone.name || phone.name,
+      platform: pending.phone.platform ?? phone.platform };
     setPhone(next);
     setReference(pending.reference);
-    setPreserve({ status: true, header: Boolean(pending.reference.header), footer: Boolean(pending.reference.footer) });
+    setPreserve({ status: Boolean(pending.reference.status), header: Boolean(pending.reference.header), footer: Boolean(pending.reference.footer) });
     setOriginal(false);
     if (useMessages) {
       const imported = makeMessages(prepareMessages(pending.messages, next, undefined, true));
@@ -283,6 +305,8 @@ export default function Editor() {
           <Field label="Contact subtitle"><input maxLength={80} value={phone.subtitle} onChange={event => setScreen('subtitle', event.target.value)} /></Field>
           <label className="btn secondary file-btn"><ImagePlus size={16} /> Contact photo<input type="file" accept={acceptImage} onChange={event => void asset(event, 'image', url => setScreen('avatar', url))} /></label>
           <hr />
+          <label className="check"><input type="checkbox" checked={phone.showStatus !== false}
+            onChange={event => setScreen('showStatus', event.target.checked)} /> Show status bar</label>
           <div className="two-fields">
             <Field label="Status bar time"><input type="time" value={phone.clock} onChange={event => setScreen('clock', event.target.value)} /></Field>
             <Field label="Clock format"><select value={phone.format} onChange={event => setScreen('format', event.target.value as Phone['format'])}><option value="24">24-hour</option><option value="12">AM/PM</option></select></Field>
@@ -315,7 +339,8 @@ export default function Editor() {
             <button className="text-btn" onClick={() => {
               setReference(undefined); setOriginal(false); setPreserve(noSlices);
               setPhone(current => ({ ...current, width: defaultPhone.width, height: defaultPhone.height, wallpaper: undefined,
-                wallpaperStyle: undefined, textSize: undefined, chrome: undefined, background: undefined, incoming: undefined, outgoing: undefined }));
+                wallpaperStyle: undefined, textSize: undefined, showStatus: undefined, chrome: undefined,
+                background: undefined, incoming: undefined, outgoing: undefined }));
             }}>Remove screenshot reference</button>
           </>}
         </div>}
@@ -331,7 +356,8 @@ export default function Editor() {
         </div>
         <div className="preview-area" style={{ '--preview-ratio': phone.width / phone.height } as React.CSSProperties}>
           <PhonePreview phone={phone} messages={messages} reference={reference} preserve={preserve}
-            original={original} today={today} previewRef={previewRef} messagesRef={messagesRef} select={select} add={add} />
+            original={original} today={today} previewRef={previewRef} messagesRef={messagesRef}
+            select={select} editDate={editDate} add={add} />
         </div>
         <div className="stage-footer"><span>{phone.width} × {phone.height}</span><span>{reference ? 'Screenshot reference' : 'Sample phone layout'}</span></div>
         {drop && <div className="drop-target"><Upload size={30} /> Drop screenshot here</div>}
@@ -379,6 +405,20 @@ export default function Editor() {
         </div>}
       </aside>
     </main>
+    {dateEdit && <Modal title="Change chat date" close={() => setDateEdit(undefined)}>
+      <div className="date-presets" role="group" aria-label="Date presets">
+        {[-1, 0, 1].map(offset => {
+          const currentDay = today || localDate();
+          const date = addDays(currentDay, offset);
+          return <button key={offset} type="button" className="btn secondary" aria-pressed={dateEdit.value === date}
+            onClick={() => setDateEdit({ ...dateEdit, value: date })}>{dateLabel(date, currentDay)}</button>;
+        })}
+      </div>
+      <Field label="Date"><input type="date" value={dateEdit.value}
+        onChange={event => setDateEdit({ ...dateEdit, value: event.target.value })} /></Field>
+      <div className="dialog-actions"><button type="button" className="btn primary" disabled={!dateEdit.value}
+        onClick={applyDate}>Apply date</button></div>
+    </Modal>}
     {pending && <Modal title="Apply screenshot" close={() => setPending(undefined)}>
       <div className="reference-review"><img src={pending.reference.source} alt="Screenshot to import" /><div>
         <strong>{pending.phone.width} × {pending.phone.height}</strong>
