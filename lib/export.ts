@@ -1,3 +1,54 @@
+type LocalRule = { rule: CSSRule; base: string };
+
+function localStyleRules(doc: Document): LocalRule[] {
+  const origin = doc.location.origin;
+  return [...doc.styleSheets].flatMap(sheet => {
+    const base = sheet.href || doc.baseURI;
+    if (sheet.disabled || (sheet.href && new URL(base).origin !== origin)) return [];
+    try {
+      return [...sheet.cssRules].map(rule => ({ rule, base }));
+    } catch {
+      return [];
+    }
+  });
+}
+
+async function inlineFont(url: URL) {
+  const response = await fetch(url, { mode: 'same-origin' });
+  if (!response.ok) throw new Error('Font file unavailable.');
+  const blob = await response.blob();
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function exportFontStyles(phone: HTMLElement, styles: LocalRule[]) {
+  const normalize = (family: string) => family.replace(/["']/g, '').trim().toLowerCase();
+  const families = new Set(getComputedStyle(phone).fontFamily.split(',').map(normalize));
+  const origin = phone.ownerDocument.location.origin;
+  const fontRules = await Promise.all(styles.map(async ({ rule, base }) => {
+    if (!(rule instanceof CSSFontFaceRule) || !families.has(normalize(rule.style.fontFamily))) return '';
+    let css = rule.cssText;
+    const sources = [...rule.style.getPropertyValue('src').matchAll(/url\(\s*(?:"([^"]*)"|'([^']*)'|([^'")\s]+))\s*\)/g)];
+    try {
+      for (const source of sources) {
+        const url = new URL(source[1] ?? source[2] ?? source[3], base);
+        if (url.protocol === 'data:') continue;
+        if (url.origin !== origin) return '';
+        const data = await inlineFont(url);
+        css = css.replace(source[0], 'url("' + data + '")');
+      }
+      return css;
+    } catch {
+      return '';
+    }
+  }));
+  return fontRules.filter(Boolean).join('\n');
+}
+
 function download(content: Blob, filename: string) {
   const url = URL.createObjectURL(content);
   const link = document.createElement('a');
@@ -10,6 +61,8 @@ function download(content: Blob, filename: string) {
 export async function exportPng(phone: HTMLDivElement, width: number, height: number) {
   const { toBlob } = await import('html-to-image');
   await document.fonts.ready;
+  // Supplying the font CSS keeps html-to-image from enumerating protected stylesheets.
+  const fontEmbedCSS = await exportFontStyles(phone, localStyleRules(phone.ownerDocument));
   const bounds = phone.getBoundingClientRect();
   const body = phone.querySelector<HTMLElement>('.phone-messages');
   const flow = phone.querySelector<HTMLElement>('.message-flow');
@@ -23,7 +76,7 @@ export async function exportPng(phone: HTMLDivElement, width: number, height: nu
   try {
     const result = await toBlob(phone, {
       width: bounds.width, height: bounds.height, canvasWidth: width, canvasHeight: height,
-      pixelRatio: 1, skipAutoScale: true,
+      pixelRatio: 1, skipAutoScale: true, fontEmbedCSS,
       style: { borderRadius: '0', boxShadow: 'none', margin: '0' },
       filter: node => !node.matches?.('.empty-chat, .bubble-hit, .jump-to-latest'),
     });
@@ -39,9 +92,9 @@ export async function exportPng(phone: HTMLDivElement, width: number, height: nu
 }
 
 export async function exportHtml(phone: HTMLDivElement, width: number) {
-  const { getFontEmbedCSS } = await import('html-to-image');
   await document.fonts.ready;
-  const fontStyles = await getFontEmbedCSS(phone);
+  const localRules = localStyleRules(phone.ownerDocument);
+  const fontStyles = await exportFontStyles(phone, localRules);
   const clone = phone.cloneNode(true) as HTMLDivElement;
   clone.querySelectorAll('.empty-chat, .bubble-hit, .jump-to-latest').forEach(node => node.remove());
   clone.querySelectorAll('button').forEach(button => {
@@ -51,10 +104,8 @@ export async function exportHtml(phone: HTMLDivElement, width: number) {
     span.append(...button.childNodes);
     button.replaceWith(span);
   });
-  const styles = [...document.styleSheets].flatMap(sheet => {
-    try { return [...sheet.cssRules].filter(rule => !/^@font-face/i.test(rule.cssText)).map(rule => rule.cssText); }
-    catch { return []; }
-  }).join('\n');
+  const styles = localRules.filter(({ rule }) => rule.type !== CSSRule.FONT_FACE_RULE && rule.type !== CSSRule.IMPORT_RULE)
+    .map(({ rule }) => rule.cssText).join('\n');
   const documentText = '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
     '<title data-export-decoration>Chat Rehearsal</title><style>' + (fontStyles + '\n' + styles).replace(/<\/style/gi, '<\\/style') +
     'body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:12px;background:#eeeaf8}' +
