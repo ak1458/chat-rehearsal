@@ -1,0 +1,6 @@
+const sketches = '<path d="M14 22h23v13H24l-6 5v-5h-4zM20 28h3m5 0h3 M62 16l4-7 4 7 8 1-6 5 2 8-8-4-7 4 1-8-6-5z M106 19l26-8-6 22-6-8-9 4 3-7zM119 24l11-11 M155 18h22v15h-22zM157 20l9 8 9-8 M194 12c14 0 18 11 7 20-11-9-8-20 2-13 M16 73h20l-2 13H19zM36 75c9-2 9 7 0 6M24 68l1-4m5 4 1-4 M56 54l12 16 17-12M65 62l4-5 7 4m-13 15 6-6 8 3 M109 71c0-8 8-13 15-8 6 4 5 10-1 15l-9 6 1-8z M157 58v20m0-19 14-4v17m-14 6c-1 5-10 5-10 1 0-3 6-5 10-1zm14-6c0 4-9 5-9 1 0-3 6-4 9-1z M192 65l6 15 13-7-8-14zM194 67l9-4 M23 105l-9 14h9l-2 10 13-16h-9l3-8 M66 108c4-7 13-2 10 4-2 5-9 9-10 10-1-1-9-6-11-11-3-6 7-11 11-3z M112 108h18v14h-18zM116 114l2 4 4-6 4 5 M153 108l8 4 8-4-1 9 6 6-9 1-4 8-4-8-9-1 6-6z M192 111l9 8-9 8m19-16-9 8 9 8"/><circle cx="102" cy="49" r="2"/><circle cx="43" cy="104" r="2"/><circle cx="184" cy="91" r="2"/><circle cx="137" cy="53" r="2"/><circle cx="46" cy="49" r="2"/>';
+
+export const doodles = Object.fromEntries(['light', 'dark'].map(theme => [theme, 'url("data:image/svg+xml,' +
+  encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="220" height="145" viewBox="0 0 220 145">' +
+    '<g fill="none" stroke="' + (theme === 'dark' ? '#e4f5e8' : '#73604a') + '" stroke-opacity=".15" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">' +
+    sketches + '</g></svg>') + '")']));
