@@ -13,9 +13,9 @@ function localStyleRules(doc: Document): LocalRule[] {
   });
 }
 
-async function inlineFont(url: URL) {
+async function inlineResource(url: URL) {
   const response = await fetch(url, { mode: 'same-origin' });
-  if (!response.ok) throw new Error('Font file unavailable.');
+  if (!response.ok) throw new Error('Export asset unavailable.');
   const blob = await response.blob();
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -38,7 +38,7 @@ async function exportFontStyles(phone: HTMLElement, styles: LocalRule[]) {
         const url = new URL(source[1] ?? source[2] ?? source[3], base);
         if (url.protocol === 'data:') continue;
         if (url.origin !== origin) return '';
-        const data = await inlineFont(url);
+        const data = await inlineResource(url);
         css = css.replace(source[0], 'url("' + data + '")');
       }
       return css;
@@ -96,6 +96,15 @@ export async function exportHtml(phone: HTMLDivElement, width: number) {
   const localRules = localStyleRules(phone.ownerDocument);
   const fontStyles = await exportFontStyles(phone, localRules);
   const clone = phone.cloneNode(true) as HTMLDivElement;
+  const wallpaper = /^url\(["']?(\/[^"')]+)["']?\)$/.exec(clone.style.getPropertyValue('--wallpaper').trim());
+  if (wallpaper) {
+    try {
+      const data = await inlineResource(new URL(wallpaper[1], phone.ownerDocument.baseURI));
+      clone.style.setProperty('--wallpaper', 'url("' + data + '")');
+    } catch {
+      clone.style.removeProperty('--wallpaper');
+    }
+  }
   clone.querySelectorAll('.empty-chat, .bubble-hit, .jump-to-latest').forEach(node => node.remove());
   clone.querySelectorAll('button').forEach(button => {
     const span = document.createElement('span');

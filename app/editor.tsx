@@ -305,8 +305,10 @@ export default function Editor() {
           <Field label="Contact subtitle"><input maxLength={80} value={phone.subtitle} onChange={event => setScreen('subtitle', event.target.value)} /></Field>
           <label className="btn secondary file-btn"><ImagePlus size={16} /> Contact photo<input type="file" accept={acceptImage} onChange={event => void asset(event, 'image', url => setScreen('avatar', url))} /></label>
           <hr />
-          <label className="check"><input type="checkbox" checked={phone.showStatus !== false}
+          <label className="check"><input type="checkbox" checked={phone.showStatus ?? (phone.platform !== 'Android')}
             onChange={event => setScreen('showStatus', event.target.checked)} /> Show status bar</label>
+          <label className="check"><input type="checkbox" checked={phone.encryptionNotice ?? (phone.platform === 'Android')}
+            onChange={event => setScreen('encryptionNotice', event.target.checked)} /> Show encryption notice</label>
           <div className="two-fields">
             <Field label="Status bar time"><input type="time" value={phone.clock} onChange={event => setScreen('clock', event.target.value)} /></Field>
             <Field label="Clock format"><select value={phone.format} onChange={event => setScreen('format', event.target.value as Phone['format'])}><option value="24">24-hour</option><option value="12">AM/PM</option></select></Field>

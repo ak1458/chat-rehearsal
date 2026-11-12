@@ -31,6 +31,7 @@ export type Phone = {
   signal: number;
   wifi: boolean;
   showStatus?: boolean;
+  encryptionNotice?: boolean;
   width: number;
   height: number;
   wallpaper?: string;
@@ -44,9 +45,9 @@ export type Phone = {
 };
 
 export const defaultPhone: Phone = {
-  platform: 'iPhone', theme: 'light', name: 'Riya Patel', subtitle: 'online',
+  platform: 'Android', theme: 'dark', name: 'Riya Patel', subtitle: '',
   mode: 'direct', clock: '09:41', format: '24', battery: 82, charging: false,
-  signal: 4, wifi: true, width: 1170, height: 2532,
+  signal: 4, wifi: true, width: 786, height: 1600,
 };
 export const demo: Message[] = [
   { id: 'a', sender: 'Riya Patel', outgoing: false, kind: 'text', time: '09:38', text: 'Be honest. How long have you been playing that same chord?' },
