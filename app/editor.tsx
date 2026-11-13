@@ -11,6 +11,9 @@ import { addDays, dateLabel, localDate, scheduleDrafts, type Timing } from '../l
 const noSlices = { status: false, header: false, footer: false };
 const icons = { text: MessageCircle, photo: ImagePlus, voice: MessagesSquare, event: CodeXml };
 const acceptImage = 'image/png,image/jpeg,image/webp,image/avif,image/bmp';
+const statusFields: ReadonlySet<keyof Phone> = new Set([
+  'clock', 'clockFormat', 'battery', 'charging', 'signal', 'wifi', 'statusLayout', 'showBatteryPercent', 'network',
+]);
 const id = () => crypto.randomUUID?.() ?? Date.now().toString(36) + Math.random().toString(36).slice(2);
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -56,6 +59,7 @@ export default function Editor() {
   const messagesRef = useRef<HTMLDivElement>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
   const detailsRef = useRef<HTMLElement>(null);
+  const screenSettingsRef = useRef<HTMLDivElement>(null);
   const scrollNext = useRef(false);
   const running = useRef(false);
   const index = messages.findIndex(message => message.id === selectedId);
@@ -72,9 +76,10 @@ export default function Editor() {
 
   function setScreen<K extends keyof Phone>(key: K, value: Phone[K]) {
     setOriginal(false);
-    setPhone(current => ({ ...current, [key]: value }));
+    const editsStatus = statusFields.has(key);
+    setPhone(current => ({ ...current, ...(editsStatus ? { showStatus: true } : {}), [key]: value }));
     if (key === 'wallpaper') setPhone(current => ({ ...current, wallpaperStyle: undefined }));
-    if (['clock', 'format', 'battery', 'charging', 'signal', 'wifi'].includes(key)) {
+    if (editsStatus) {
       setPreserve(current => ({ ...current, status: false }));
     }
     if (['name', 'subtitle', 'mode', 'avatar'].includes(key)) {
@@ -85,6 +90,14 @@ export default function Editor() {
       setPhone(current => ({ ...current, chrome: undefined, background: undefined, incoming: undefined, outgoing: undefined,
         ...(current.wallpaperStyle === 'reference' ? { wallpaperStyle: undefined, wallpaper: undefined } : {}) }));
     }
+  }
+
+  function openScreenSettings() {
+    setTab('phone');
+    requestAnimationFrame(() => {
+      screenSettingsRef.current?.scrollIntoView({ block: 'nearest' });
+      screenSettingsRef.current?.querySelector('input')?.focus({ preventScroll: true });
+    });
   }
 
   function select(messageId: string, reveal = true) {
@@ -286,8 +299,41 @@ export default function Editor() {
             })}
             {messages.length === 0 && <p className="subtle empty-list">Add a message or paste a conversation.</p>}
           </div>
-        </> : <div className="panel-section phone-fields">
+        </> : <div className="panel-section phone-fields" ref={screenSettingsRef}>
           <h2>Screen settings</h2>
+          <fieldset className="status-settings">
+            <legend>Status bar</legend>
+            <label className="check"><input type="checkbox" checked={phone.showStatus !== false}
+              onChange={event => setScreen('showStatus', event.target.checked)} /> Show status bar</label>
+            <Field label="Status bar layout"><select value={phone.statusLayout ?? 'device'}
+              onChange={event => setScreen('statusLayout', event.target.value as Phone['statusLayout'])}>
+              <option value="device">Match device</option><option value="android-pill">Android · pill battery</option>
+              <option value="android-classic">Android · vertical battery</option><option value="iphone">iPhone · outlined battery</option>
+            </select></Field>
+            <div className="two-fields">
+              <Field label="Status bar time"><input type="time" value={phone.clock} onChange={event => setScreen('clock', event.target.value)} /></Field>
+              <Field label="Clock format"><select value={phone.clockFormat ?? phone.format} onChange={event => setScreen('clockFormat', event.target.value as Phone['clockFormat'])}>
+                <option value="24">24-hour</option><option value="12">AM/PM</option></select></Field>
+              <Field label="Battery %"><input type="number" min="0" max="100" step="1" value={phone.battery}
+                onChange={event => setScreen('battery', Math.round(Math.min(100, Math.max(0, Number(event.target.value)))))} /></Field>
+              <Field label="Signal bars"><select value={phone.signal} onChange={event => setScreen('signal', Number(event.target.value))}>
+                {[0, 1, 2, 3, 4].map(value => <option key={value}>{value}</option>)}</select></Field>
+            </div>
+            <Field label="Mobile network"><select value={phone.network ?? ''} onChange={event => setScreen('network', event.target.value as Phone['network'])}>
+              <option value="">Hidden</option><option>4G</option><option>5G</option><option>LTE</option></select></Field>
+            <div className="status-checks">
+              <label className="check"><input type="checkbox" checked={phone.showBatteryPercent ?? true}
+                onChange={event => setScreen('showBatteryPercent', event.target.checked)} /> Show battery percentage</label>
+              <label className="check"><input type="checkbox" checked={phone.charging} onChange={event => setScreen('charging', event.target.checked)} /> Charging</label>
+              <label className="check"><input type="checkbox" checked={phone.wifi} onChange={event => setScreen('wifi', event.target.checked)} /> Wi-Fi</label>
+            </div>
+            {reference?.status && <label className="check"><input type="checkbox" checked={preserve.status} onChange={event => {
+              const checked = event.target.checked;
+              setPreserve(current => ({ ...current, status: checked }));
+              if (checked) setScreen('showStatus', true);
+              else setOriginal(false);
+            }} /> Use original status bar</label>}
+          </fieldset>
           <div className="two-fields">
             <Field label="Device"><select value={phone.platform} onChange={event => setScreen('platform', event.target.value as Phone['platform'])}><option>iPhone</option><option>Android</option></select></Field>
             <Field label="Appearance"><select value={phone.theme} onChange={event => setScreen('theme', event.target.value as Phone['theme'])}><option value="light">Light</option><option value="dark">Dark</option></select></Field>
@@ -305,18 +351,13 @@ export default function Editor() {
           <Field label="Contact subtitle"><input maxLength={80} value={phone.subtitle} onChange={event => setScreen('subtitle', event.target.value)} /></Field>
           <label className="btn secondary file-btn"><ImagePlus size={16} /> Contact photo<input type="file" accept={acceptImage} onChange={event => void asset(event, 'image', url => setScreen('avatar', url))} /></label>
           <hr />
-          <label className="check"><input type="checkbox" checked={phone.showStatus ?? (phone.platform !== 'Android')}
-            onChange={event => setScreen('showStatus', event.target.checked)} /> Show status bar</label>
           <label className="check"><input type="checkbox" checked={phone.encryptionNotice ?? (phone.platform === 'Android')}
             onChange={event => setScreen('encryptionNotice', event.target.checked)} /> Show encryption notice</label>
-          <div className="two-fields">
-            <Field label="Status bar time"><input type="time" value={phone.clock} onChange={event => setScreen('clock', event.target.value)} /></Field>
-            <Field label="Clock format"><select value={phone.format} onChange={event => setScreen('format', event.target.value as Phone['format'])}><option value="24">24-hour</option><option value="12">AM/PM</option></select></Field>
-            <Field label="Battery %"><input type="number" min="0" max="100" value={phone.battery} onChange={event => setScreen('battery', Math.min(100, Math.max(0, Number(event.target.value))))} /></Field>
-            <Field label="Signal bars"><select value={phone.signal} onChange={event => setScreen('signal', Number(event.target.value))}>{[0, 1, 2, 3, 4].map(value => <option key={value}>{value}</option>)}</select></Field>
-          </div>
-          <div className="two-fields"><label className="check"><input type="checkbox" checked={phone.charging} onChange={event => setScreen('charging', event.target.checked)} /> Charging</label>
-            <label className="check"><input type="checkbox" checked={phone.wifi} onChange={event => setScreen('wifi', event.target.checked)} /> Wi-Fi</label></div>
+          <Field label="Message time format"><select value={phone.format} onChange={event => {
+            const format = event.target.value as Phone['format'];
+            setOriginal(false);
+            setPhone(current => ({ ...current, clockFormat: current.clockFormat ?? current.format, format }));
+          }}><option value="24">24-hour</option><option value="12">AM/PM</option></select></Field>
           <hr />
           <div className="two-fields">
             <Field label="Wallpaper"><select value={phone.wallpaper ? phone.wallpaperStyle === 'reference' ? 'reference' : 'custom'
@@ -335,9 +376,9 @@ export default function Editor() {
           {phone.wallpaper && <button className="text-btn" onClick={() => setScreen('wallpaper', undefined)}>Remove wallpaper image</button>}
           {reference && <>
             <hr /><h3>Screenshot details</h3>
-            {(['status', 'header', 'footer'] as const).filter(key => Boolean(reference[key])).map(key => <label className="check" key={key}><input type="checkbox" checked={preserve[key]}
+            {(['header', 'footer'] as const).filter(key => Boolean(reference[key])).map(key => <label className="check" key={key}><input type="checkbox" checked={preserve[key]}
               onChange={event => { setOriginal(false); setPreserve(current => ({ ...current, [key]: event.target.checked })); }} />
-              Use original {key === 'status' ? 'status bar' : key === 'footer' ? 'composer' : 'header'}</label>)}
+              Use original {key === 'footer' ? 'composer' : 'header'}</label>)}
             <button className="text-btn" onClick={() => {
               setReference(undefined); setOriginal(false); setPreserve(noSlices);
               setPhone(current => ({ ...current, width: defaultPhone.width, height: defaultPhone.height, wallpaper: undefined,
@@ -353,8 +394,10 @@ export default function Editor() {
         onDragLeave={event => { event.preventDefault(); dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDrop(false); }}
         onDrop={event => { event.preventDefault(); dragDepth.current = 0; setDrop(false); void startScan(event.dataTransfer.files[0]); }}>
         <div className="stage-toolbar"><h2>{original ? 'Original screenshot' : 'Live preview'}</h2>
-          {reference ? <div className="segmented"><button aria-pressed={!original} onClick={() => setOriginal(false)}>Preview</button><button aria-pressed={original} onClick={() => setOriginal(true)}>Original</button></div>
-            : <button className="preview-device" onClick={() => setTab('phone')}><Smartphone size={15} /> {phone.platform} <ChevronDown size={13} /></button>}
+          <div className="stage-actions">
+            {reference && <div className="segmented"><button aria-pressed={!original} onClick={() => setOriginal(false)}>Preview</button><button aria-pressed={original} onClick={() => setOriginal(true)}>Original</button></div>}
+            <button className="preview-device" onClick={openScreenSettings} aria-label="Open status bar and screen settings"><Smartphone size={15} /> Screen</button>
+          </div>
         </div>
         <div className="preview-area" style={{ '--preview-ratio': phone.width / phone.height } as React.CSSProperties}>
           <PhonePreview phone={phone} messages={messages} reference={reference} preserve={preserve}

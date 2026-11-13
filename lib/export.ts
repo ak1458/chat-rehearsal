@@ -96,15 +96,16 @@ export async function exportHtml(phone: HTMLDivElement, width: number) {
   const localRules = localStyleRules(phone.ownerDocument);
   const fontStyles = await exportFontStyles(phone, localRules);
   const clone = phone.cloneNode(true) as HTMLDivElement;
-  const wallpaper = /^url\(["']?(\/[^"')]+)["']?\)$/.exec(clone.style.getPropertyValue('--wallpaper').trim());
-  if (wallpaper) {
+  await Promise.all(['--wallpaper', '--chat-icons'].map(async property => {
+    const resource = /^url\(["']?(\/[^"')]+)["']?\)$/.exec(clone.style.getPropertyValue(property).trim());
+    if (!resource) return;
     try {
-      const data = await inlineResource(new URL(wallpaper[1], phone.ownerDocument.baseURI));
-      clone.style.setProperty('--wallpaper', 'url("' + data + '")');
+      const data = await inlineResource(new URL(resource[1], phone.ownerDocument.baseURI));
+      clone.style.setProperty(property, 'url("' + data + '")');
     } catch {
-      clone.style.removeProperty('--wallpaper');
+      clone.style.removeProperty(property);
     }
-  }
+  }));
   clone.querySelectorAll('.empty-chat, .bubble-hit, .jump-to-latest').forEach(node => node.remove());
   clone.querySelectorAll('button').forEach(button => {
     const span = document.createElement('span');

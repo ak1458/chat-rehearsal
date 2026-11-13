@@ -1,9 +1,10 @@
-import { ArrowLeft, Camera, Check, CheckCheck, ChevronDown, ChevronsDown, ChevronLeft, EllipsisVertical, ImagePlus, IndianRupee, LockKeyhole, Mic, Paperclip, Phone as Call, Play, Plus, Smile, Sticker, UserRound, Video, Wifi, Zap } from 'lucide-react';
+import { Check, CheckCheck, ChevronDown, ChevronsDown, ChevronLeft, ImagePlus, LockKeyhole, Mic, Phone as Call, Play, Plus, Smile, UserRound, Video } from 'lucide-react';
 import { Fragment, useEffect, useState, type CSSProperties, type RefObject } from 'react';
 import { displayTime, type Message, type Phone } from '../lib/chat';
 import type { Reference } from '../lib/screenshot';
 import { dateLabel } from '../lib/timeline';
 import { doodles } from '../lib/doodles';
+import { PhoneStatus } from './phone-status';
 
 export type Preserve = { status: boolean; header: boolean; footer: boolean };
 type Props = {
@@ -21,7 +22,17 @@ type Props = {
 };
 
 const waveform = [11, 20, 14, 28, 38, 31, 15, 27, 41, 33, 23, 35, 20, 31, 15, 21, 13, 31, 22, 11, 17, 9, 14, 7];
-const androidDarkWallpaper = (process.env.NEXT_PUBLIC_BASE_PATH || '') + '/android-dark-wallpaper.jpg';
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
+const androidDarkWallpaper = basePath + '/android-dark-wallpaper.jpg';
+const androidChatIcons = basePath + '/android-chat-icons.png';
+// Keep this order in sync with the glyphs in the screenshot-derived sprite.
+const androidGlyphs = ['back', 'video', 'call', 'menu', 'sticker', 'attachment', 'payment', 'camera', 'mic', 'lock'] as const;
+
+function AndroidIcon({ name }: { name: typeof androidGlyphs[number] }) {
+  return <span className={'android-chat-icon glyph-' + name} aria-hidden="true"
+    style={{ maskSize: '100% ' + androidGlyphs.length * 100 + '%',
+      maskPosition: 'center ' + androidGlyphs.indexOf(name) / (androidGlyphs.length - 1) * 100 + '%' }} />;
+}
 const fonts = {
   system: 'system-ui, sans-serif', roboto: '"Roboto Variable", Roboto, sans-serif',
   inter: '"Inter Variable", sans-serif', noto: '"Noto Sans Variable", sans-serif',
@@ -49,7 +60,7 @@ export function PhonePreview({ phone, messages, reference, preserve, original, t
 
   const android = phone.platform === 'Android';
   const ratio = phone.width / phone.height;
-  const showStatus = phone.showStatus ?? !android;
+  const showStatus = phone.showStatus !== false;
   const sourceStatus = showStatus && reference && preserve.status ? reference.status : undefined;
   const sourceHeader = reference && preserve.header ? reference.header : undefined;
   const sourceFooter = reference && preserve.footer ? reference.footer : undefined;
@@ -67,6 +78,7 @@ export function PhonePreview({ phone, messages, reference, preserve, original, t
     '--sample-out': phone.outgoing,
     '--sample-in': phone.incoming,
     '--wallpaper': wallpaper,
+    '--chat-icons': android ? 'url("' + androidChatIcons + '")' : undefined,
     '--wallpaper-repeat': phone.wallpaper ? 'no-repeat' : useAndroidWallpaper ? 'repeat-y' : 'repeat',
     '--wallpaper-size': phone.wallpaperStyle === 'reference' ? '100% 100%' : phone.wallpaper ? 'cover' : useAndroidWallpaper ? '100% auto' : '58cqw auto',
     '--phone-font': phone.font && phone.font !== 'auto' ? fonts[phone.font] :
@@ -77,35 +89,21 @@ export function PhonePreview({ phone, messages, reference, preserve, original, t
     phone.name.split(/\s+/).filter(Boolean).slice(0, 2).map(word => word[0]).join('').toUpperCase();
   const showNotice = phone.encryptionNotice ?? android;
   const notice = showNotice && <div className="encryption-notice" data-export-decoration>
-    <LockKeyhole size="2.5cqw" aria-hidden /> Messages and calls are end-to-end encrypted. Only people in this chat can read,
+    {android ? <AndroidIcon name="lock" /> : <LockKeyhole size="2.5cqw" aria-hidden />} Messages and calls are end-to-end encrypted. Only people in this chat can read,
     listen to, or share them. <strong>Learn more</strong>
   </div>;
   return <div className={'phone ' + phone.theme + (android ? ' android' : '') + (reference ? ' reference' : '')}
     ref={previewRef} style={style} aria-label={original ? 'Original screenshot' : 'Chat preview'}>
     {original && reference ? <img className="original" src={reference.source} alt="Original WhatsApp screenshot" /> : <>
-      <div className="phone-status">
-        {showStatus && (sourceStatus ? <img className="source-slice" src={sourceStatus} alt="Original status bar" /> : <>
-          <strong>{displayTime(phone.clock, phone.format)}</strong>
-          <div className="status-right">
-            <span className="bars" aria-label={phone.signal + ' signal bars'}>{[1, 2, 3, 4].map(bar => <i key={bar} style={{ opacity: bar <= phone.signal ? 1 : .25 }} />)}</span>
-            {phone.wifi && <Wifi size="4.25cqw" strokeWidth={2.7} />}
-            <span className="battery" aria-label={phone.battery + '% battery' + (phone.charging ? ', charging' : '')}>
-              <span style={{ width: phone.battery + '%' }} />
-              <b>{phone.battery}</b>
-            </span>
-            {phone.charging && <Zap size="2.7cqw" fill="currentColor" />}
-          </div>
-        </>)}
-      </div>
-      <div className="phone-header">
+      <PhoneStatus phone={phone} source={sourceStatus} />
+      <div className="phone-header" data-export-decoration>
         {sourceHeader ? <img className="source-slice" src={sourceHeader} alt="Original chat header" /> : <>
-          {android ? <ArrowLeft className="chat-back" size="6cqw" /> : <ChevronLeft size="7cqw" />}
+          {android ? <AndroidIcon name="back" /> : <ChevronLeft size="7cqw" />}
           <span className="avatar">{photo}</span>
           <span className="phone-contact"><strong>{phone.name || 'Chat'}</strong>{phone.subtitle && <small>{phone.subtitle}</small>}</span>
           <span className="chat-header-actions" aria-hidden>
-            <Video size={android ? '6.2cqw' : '5.9cqw'} />
-            <Call size={android ? '6cqw' : '5cqw'} />
-            {android && <EllipsisVertical size="5cqw" />}
+            {android ? <><AndroidIcon name="video" /><AndroidIcon name="call" /><AndroidIcon name="menu" /></>
+              : <><Video size="5.9cqw" /><Call size="5cqw" /></>}
           </span>
         </>}
       </div>
@@ -164,12 +162,12 @@ export function PhonePreview({ phone, messages, reference, preserve, original, t
         {sourceFooter ? <img className="source-slice" src={sourceFooter} alt="Original message composer" /> :
           android ? <div className="phone-compose" data-export-decoration>
             <button type="button" onClick={add} className="compose-field">
-              <Sticker size="5.7cqw" aria-hidden />
+              <AndroidIcon name="sticker" />
               <span className="compose-label">Message</span>
-              <span className="compose-tools" aria-hidden><Paperclip size="5.7cqw" />
-                <span className="compose-pay"><IndianRupee size="3.3cqw" /></span><Camera size="5.8cqw" /></span>
+              <span className="compose-tools"><AndroidIcon name="attachment" />
+                <AndroidIcon name="payment" /><AndroidIcon name="camera" /></span>
             </button>
-            <span className="phone-mic"><Mic size="6.2cqw" /></span>
+            <span className="phone-mic"><AndroidIcon name="mic" /></span>
           </div> : <><div className="phone-compose" data-export-decoration>
             <Plus size="6cqw" />
             <button type="button" onClick={add} className="compose-field"><Smile size="5.2cqw" /><span>Message</span></button>

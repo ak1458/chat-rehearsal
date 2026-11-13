@@ -25,12 +25,16 @@ export type Phone = {
   avatar?: string;
   mode: 'direct' | 'group';
   clock: string;
+  clockFormat?: '12' | '24';
   format: '12' | '24';
   battery: number;
   charging: boolean;
   signal: number;
   wifi: boolean;
   showStatus?: boolean;
+  statusLayout?: 'device' | 'android-pill' | 'android-classic' | 'iphone';
+  showBatteryPercent?: boolean;
+  network?: '' | '4G' | '5G' | 'LTE';
   encryptionNotice?: boolean;
   width: number;
   height: number;
